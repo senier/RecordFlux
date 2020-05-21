@@ -380,7 +380,7 @@ class RangeType(TypeDeclaration):
 
 class EnumerationType(TypeDeclaration):
     def __init__(
-        self, identifier: StrID, literals: Mapping[str, Optional[Number]], size: Expr = None,
+        self, identifier: StrID, literals: Mapping[ID, Optional[Number]], size: Expr = None,
     ) -> None:
         super().__init__(identifier, aspects=([Size(size)] if size else []))
         self.literals = (
@@ -392,7 +392,7 @@ class EnumerationType(TypeDeclaration):
 
     @property
     def type_definition(self) -> str:
-        literal_specification = ", ".join(self.literals.keys())
+        literal_specification = ", ".join(map(str, self.literals.keys()))
         return f" ({literal_specification})"
 
     @property
