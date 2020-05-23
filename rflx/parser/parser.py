@@ -56,6 +56,7 @@ class Parser:
             try:
                 for specification in grammar.unit().parseFile(filehandle):
                     check_naming(specfile.name, specification.package.identifier)
+                    specification.set_source(specfile)
                     self.__specifications.appendleft(specification)
                     for item in specification.context.items:
                         item.location.set_filename(specfile)
@@ -112,17 +113,33 @@ class Parser:
         try:
             self.__evaluate_types(specification)
             check_types(self.__types)
-        except (ParserError, ModelError) as e:
+        except (ParserError, ModelError, RecordFluxError) as e:
             raise e
         except Exception:
             raise ParserError(traceback.format_exc())
 
     def __evaluate_types(self, spec: Specification) -> None:
         for t in spec.package.types:
+            if t.location and spec.source:
+                t.location.set_filename(spec.source)
             t.identifier = ID(f"{spec.package.identifier}.{t.name}")
 
             if t.identifier in self.__types:
-                raise ParserError(f'duplicate type "{t.identifier}"')
+                error = RecordFluxError()
+                error.add(
+                    f'duplicate type "{t.identifier}"',
+                    Subsystem.PARSER,
+                    Severity.ERROR,
+                    t.location,
+                )
+                if self.__types[t.identifier].location:
+                    error.add(
+                        f'previous occurrence of "{t.identifier}"',
+                        Subsystem.PARSER,
+                        Severity.INFO,
+                        self.__types[t.identifier].location,
+                    )
+                error.raise_if_above(Severity.NONE)
 
             if isinstance(t, Scalar):
                 self.__types[t.identifier] = t

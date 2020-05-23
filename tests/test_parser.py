@@ -247,7 +247,7 @@ def test_unexpected_attribute() -> None:
 
 def test_unexpected_type() -> None:
     with pytest.raises(ParseFatalException, match=r"^unexpected type"):
-        grammar.parse_type("", 0, ["type", "T", "is", "X"])
+        grammar.parse_type("type T is X;", 0, [0, "type", "T", "is", "X", 8])
 
 
 def test_illegal_package_identifiers() -> None:
@@ -317,7 +317,13 @@ def test_unexpected_exception_in_parser(monkeypatch: Any) -> None:
 def test_package_spec() -> None:
     assert_specifications_files(
         [f"{TESTDIR}/empty_package.rflx"],
-        {"Empty_Package": Specification(ContextSpec([]), PackageSpec("Empty_Package", []))},
+        {
+            "Empty_Package": Specification(
+                ContextSpec([]),
+                PackageSpec("Empty_Package", []),
+                Path(f"{TESTDIR}/empty_package.rflx"),
+            )
+        },
     )
 
 
@@ -328,7 +334,14 @@ def test_package_message() -> None:
 def test_duplicate_specifications() -> None:
     files = [f"{TESTDIR}/empty_package.rflx", f"{TESTDIR}/empty_package.rflx"]
     assert_specifications_files(
-        files, {"Empty_Package": Specification(ContextSpec([]), PackageSpec("Empty_Package", []))},
+        files,
+        {
+            "Empty_Package": Specification(
+                ContextSpec([]),
+                PackageSpec("Empty_Package", []),
+                Path(f"{TESTDIR}/empty_package.rflx"),
+            )
+        },
     )
     assert_messages_files(files, [])
 
@@ -338,9 +351,15 @@ def test_context_spec() -> None:
         [f"{TESTDIR}/context.rflx"],
         {
             "Context": Specification(
-                ContextSpec(["Empty_File", "Empty_Package"]), PackageSpec("Context", [])
+                ContextSpec(["Empty_File", "Empty_Package"]),
+                PackageSpec("Context", []),
+                Path(f"{TESTDIR}/context.rflx"),
             ),
-            "Empty_Package": Specification(ContextSpec([]), PackageSpec("Empty_Package", [])),
+            "Empty_Package": Specification(
+                ContextSpec([]),
+                PackageSpec("Empty_Package", []),
+                Path(f"{TESTDIR}/empty_package.rflx"),
+            ),
         },
     )
 
@@ -363,14 +382,11 @@ def test_context_dependency_cycle() -> None:
 
 
 def test_duplicate_type() -> None:
-    assert_parser_error_string(
-        """
-            package Test is
-               type T is mod 256;
-               type T is mod 256;
-            end Test;
-        """,
-        r'duplicate type "Test.T"',
+    assert_error(
+        [f"{TESTDIR}/duplicate_type.rflx"],
+        f'{TESTDIR}/duplicate_type.rflx:3:4: parser: error: duplicate type "Duplicate_Type.T"\n'
+        f"{TESTDIR}/duplicate_type.rflx:2:4: parser: info:"
+        f' previous occurrence of "Duplicate_Type.T"',
     )
 
 
@@ -546,7 +562,7 @@ def test_array_unsupported_element_type() -> None:
 
 
 def test_duplicate_message() -> None:
-    assert_parser_error_string(
+    assert_parse_string_error(
         """
             package Test is
                type T is mod 256;
@@ -560,7 +576,7 @@ def test_duplicate_message() -> None:
                   end message;
             end Test;
         """,
-        r'duplicate type "Test.PDU"',
+        r'parser: error: duplicate type "Test.PDU"',
     )
 
 
@@ -642,7 +658,7 @@ def test_refinement_invalid_condition() -> None:
 
 
 def test_derivation_duplicate_type() -> None:
-    assert_parser_error_string(
+    assert_parse_string_error(
         """
             package Test is
                type T is mod 256;
@@ -654,7 +670,7 @@ def test_derivation_duplicate_type() -> None:
                type Bar is new Foo;
             end Test;
         """,
-        r'^duplicate type "Test.Bar"$',
+        r'^parser: error: duplicate type "Test.Bar"',
     )
 
 
@@ -784,12 +800,13 @@ def test_integer_type_spec() -> None:
             PackageSpec(
                 "Integer_Type",
                 [
-                    RangeInteger("__PACKAGE__.Page_Num", Number(1), Number(2000), Number(16)),
-                    RangeInteger("__PACKAGE__.Line_Size", Number(0), Number(255), Number(8)),
-                    ModularInteger("__PACKAGE__.Byte", Number(256)),
-                    ModularInteger("__PACKAGE__.Hash_Index", Number(64)),
+                    RangeInteger("__PACKAGE__.Page_Num", Number(1), Number(2000), Number(16),),
+                    RangeInteger("__PACKAGE__.Line_Size", Number(0), Number(255), Number(8),),
+                    ModularInteger("__PACKAGE__.Byte", Number(256),),
+                    ModularInteger("__PACKAGE__.Hash_Index", Number(64),),
                 ],
             ),
+            Path(f"{TESTDIR}/integer_type.rflx"),
         )
     }
     assert_specifications_files([f"{TESTDIR}/integer_type.rflx"], spec)
@@ -827,6 +844,7 @@ def test_enumeration_type_spec() -> None:
                     ),
                 ],
             ),
+            Path(f"{TESTDIR}/enumeration_type.rflx"),
         )
     }
     assert_specifications_files([f"{TESTDIR}/enumeration_type.rflx"], spec)
@@ -839,8 +857,8 @@ def test_array_type_spec() -> None:
             PackageSpec(
                 "Array_Type",
                 [
-                    ModularInteger("__PACKAGE__.Byte", Number(256)),
-                    Array("__PACKAGE__.Bytes", ReferenceSpec("__PACKAGE__.Byte")),
+                    ModularInteger("__PACKAGE__.Byte", Number(256),),
+                    Array("__PACKAGE__.Bytes", ReferenceSpec("__PACKAGE__.Byte"),),
                     MessageSpec(
                         "__PACKAGE__.Foo",
                         [
@@ -852,9 +870,10 @@ def test_array_type_spec() -> None:
                             Component("Bytes", "Bytes"),
                         ],
                     ),
-                    Array("__PACKAGE__.Bar", ReferenceSpec("__PACKAGE__.Foo")),
+                    Array("__PACKAGE__.Bar", ReferenceSpec("__PACKAGE__.Foo"),),
                 ],
             ),
+            Path(f"{TESTDIR}/array_type.rflx"),
         )
     }
     assert_specifications_files([f"{TESTDIR}/array_type.rflx"], spec)
@@ -899,6 +918,7 @@ def test_message_type_spec() -> None:
                     MessageSpec("__PACKAGE__.Empty_PDU", []),
                 ],
             ),
+            Path(f"{TESTDIR}/message_type.rflx"),
         )
     }
     assert_specifications_files([f"{TESTDIR}/message_type.rflx"], spec)
@@ -1019,6 +1039,7 @@ def test_type_refinement_spec() -> None:
                     MessageSpec("__PACKAGE__.Empty_PDU", []),
                 ],
             ),
+            Path(f"{TESTDIR}/message_type.rflx"),
         ),
         "Type_Refinement": Specification(
             ContextSpec(["Message_Type"]),
@@ -1034,6 +1055,7 @@ def test_type_refinement_spec() -> None:
                     RefinementSpec("Message_Type.PDU", "Bar", "Message_Type.Simple_PDU"),
                 ],
             ),
+            Path(f"{TESTDIR}/type_refinement.rflx"),
         ),
     }
     assert_specifications_files(
@@ -1208,6 +1230,7 @@ def test_ethernet_spec() -> None:
                     ),
                 ],
             ),
+            Path(f"{SPECDIR}/ethernet.rflx"),
         )
     }
 
