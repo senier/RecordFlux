@@ -283,7 +283,6 @@ class GenericPackageInstantiation(Declaration):
 
 
 class ObjectDeclaration(Declaration):
-    # pylint: disable=too-many-arguments
     def __init__(
         self,
         identifiers: Sequence[StrID],
@@ -521,7 +520,6 @@ class VariantPart(Ada):
 
 
 class RecordType(TypeDeclaration):
-    # pylint: disable=too-many-arguments
     def __init__(
         self,
         identifier: StrID,
