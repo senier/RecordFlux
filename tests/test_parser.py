@@ -6,7 +6,7 @@ from typing import Any, Dict, Sequence
 
 import pytest
 
-from rflx.error import RecordFluxError
+from rflx.error import Location, RecordFluxError
 from rflx.expression import (
     UNDEFINED,
     Aggregate,
@@ -123,24 +123,11 @@ def assert_error_string(string: str, regex: str) -> None:
         p.create_model()
 
 
-def assert_parser_error(filenames: Sequence[str], regex: str) -> None:
-    with pytest.raises(ParserError, match=regex):
-        p = Parser()
-        for filename in filenames:
-            p.parse(Path(filename))
-        p.create_model()
-
-
 def assert_parser_error_string(string: str, regex: str) -> None:
     p = Parser()
     with pytest.raises(ParserError, match=regex):
         p.parse_string(string)
         p.create_model()
-
-
-def assert_parse_exception_string(string: str, regex: str) -> None:
-    with pytest.raises(ParseFatalException, match=regex):
-        Parser().parse_string(string)
 
 
 def raise_parser_error() -> None:
@@ -150,7 +137,9 @@ def raise_parser_error() -> None:
 def test_unexpected_exception_in_grammar(monkeypatch: Any) -> None:
     with pytest.raises(ParseFatalException, match=r"implementation error \(division by zero\)"):
         monkeypatch.setattr(
-            grammar, "parse_mathematical_expression", grammar.fatalexceptions(lambda x, y, z: 1 / 0)
+            grammar,
+            "parse_mathematical_expression",
+            grammar.fatalexceptions(lambda x, y, z: [1, 1 / 0, 1]),
         )
         grammar.mathematical_expression().parseString("1 + 1")
 
@@ -237,7 +226,11 @@ def test_unexpected_logical_operator() -> None:
 
 def test_unexpected_mathematical_operator() -> None:
     with pytest.raises(ParseFatalException, match=r"^unexpected mathematical operator"):
-        grammar.parse_mathematical_expression("", 0, [[Number(1), "//", Number(1)]])
+        grammar.parse_mathematical_expression(
+            "",
+            0,
+            [[Number(1, location=Location((1, 1))), "//", Number(1, location=Location((1, 8)))]],
+        )
 
 
 def test_unexpected_attribute() -> None:
@@ -296,8 +289,9 @@ def test_incorrect_name() -> None:
 
 
 def test_incorrect_specification() -> None:
-    assert_parser_error(
-        [f"{TESTDIR}/incorrect_specification.rflx"], r'Expected "is"',
+    assert_error_files(
+        [f"{TESTDIR}/incorrect_specification.rflx"],
+        f'{TESTDIR}/incorrect_specification.rflx:3:10: parser: error: Expected "is"',
     )
 
 
@@ -422,7 +416,7 @@ def test_message_undefined_component() -> None:
 
 
 def test_invalid_location_expression() -> None:
-    assert_parse_exception_string(
+    assert_error_string(
         """
             package Test is
                type T is mod 256;
@@ -435,63 +429,93 @@ def test_invalid_location_expression() -> None:
                   end message;
             end Test;
         """,
-        r'^Expected {{"First" - "=>" - MathematicalExpression} | {"Length" - "=>" -'
-        r" MathematicalExpression}} \(at char 239\), \(line:8, col:38\)$",
+        r'^<stdin>:8:38: parser: error: Expected {{"First" - "=>" - MathematicalExpression}'
+        r' | {"Length" - "=>" - MathematicalExpression}}$',
     )
 
 
 def test_illegal_redefinition() -> None:
-    assert_parse_exception_string(
+    assert_error_string(
         """
             package Test is
                type Boolean is mod 2;
             end Test;
         """,
-        r'^illegal redefinition of built-in type "Boolean"',
+        r'^<stdin>:3:16: parser: error: illegal redefinition of built-in type "Boolean"',
     )
 
 
 def test_invalid_modular_type() -> None:
-    assert_parse_exception_string(
+    assert_error_string(
         """
             package Test is
                type T is mod 2**128;
             end Test;
         """,
-        r'^modulus of "T" exceeds limit \(2\*\*62\)',
+        r"^<stdin>:3:30: model: error: modulus exceeds limit \(2\*\*62\)",
     )
 
 
 def test_invalid_enumeration_type_size() -> None:
-    assert_parse_exception_string(
+    assert_error_string(
         """
             package Test is
                type T is (Foo, Bar, Baz) with Size => 1;
             end Test;
         """,
-        r'size for "T" too small',
+        r"<stdin>:3:55: model: error: size too small",
     )
 
 
 def test_invalid_enumeration_type_duplicate_elements() -> None:
-    assert_parse_exception_string(
+    assert_error_string(
         """
             package Test is
                type T is (Foo, Foo) with Size => 1;
             end Test;
         """,
-        r'"T" contains duplicate elements',
+        r'<stdin>:3:32: model: error: duplicate element "Foo"\n'
+        r"<stdin>:3:27: model: info: previous occurrence",
+    )
+
+
+def test_invalid_enumeration_type_multiple_duplicate_elements() -> None:
+    assert_error_string(
+        """
+            package Test is
+               type T is (Foo, Bar, Foo, Bar) with Size => 1;
+            end Test;
+        """,
+        r'<stdin>:3:37: model: error: duplicate element "Foo"\n'
+        r"<stdin>:3:27: model: info: previous occurrence\n"
+        r'<stdin>:3:42: model: error: duplicate element "Bar"\n'
+        r"<stdin>:3:32: model: info: previous occurrence",
     )
 
 
 def test_invalid_enumeration_type_duplicate_values() -> None:
-    assert_parse_exception_string(
+    assert_error_string(
         """
             package Test is
                type T is (Foo => 0, Bar => 0) with Size => 1;
             end Test;
         """,
-        r'"T" contains elements with same value',
+        r'<stdin>:3:44: model: error: duplicate enumeration value "0"\n'
+        r"<stdin>:3:34: model: info: previous occurrence",
+    )
+
+
+def test_invalid_enumeration_type_multiple_duplicate_values() -> None:
+    assert_error_string(
+        """
+            package Test is
+               type T is (Foo => 0, Foo_1 => 1, Bar => 0, Bar_1 => 1) with Size => 8;
+            end Test;
+        """,
+        r'<stdin>:3:56: model: error: duplicate enumeration value "0"\n'
+        r"<stdin>:3:34: model: info: previous occurrence\n"
+        r'<stdin>:3:68: model: error: duplicate enumeration value "1"\n'
+        r"<stdin>:3:46: model: info: previous occurrence",
     )
 
 
@@ -743,7 +767,7 @@ def test_invalid_first_in_initial_node() -> None:
 
 
 def test_multiple_initial_node_edges() -> None:
-    assert_parse_exception_string(
+    assert_error_string(
         """
             package Test is
                type T is mod 256;
@@ -757,7 +781,7 @@ def test_multiple_initial_node_edges() -> None:
                   end message;
             end Test;
         """,
-        r'^Expected ";"',
+        r'^<stdin>:7:33: parser: error: Expected ";"',
     )
 
 
@@ -793,7 +817,7 @@ def test_reserved_word_in_type_name() -> None:
 
 
 def test_reserved_word_in_message_component() -> None:
-    assert_parse_exception_string(
+    assert_error_string(
         """
             package Test is
                type T is mod 256;
@@ -803,7 +827,7 @@ def test_reserved_word_in_message_component() -> None:
                   end message;
             end Test;
         """,
-        r'^Found unwanted token, "Message"',
+        r'^<stdin>:6:22: parser: error: Found unwanted token, "Message"',
     )
 
 
