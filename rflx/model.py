@@ -1057,8 +1057,15 @@ class UnprovenDerivedMessage(UnprovenMessage):
 
 
 class Refinement(Type):
+    # pylint: disable=too-many-arguments
     def __init__(
-        self, package: StrID, pdu: Message, field: Field, sdu: Message, condition: Expr = TRUE
+        self,
+        package: StrID,
+        pdu: Message,
+        field: Field,
+        sdu: Message,
+        condition: Expr = TRUE,
+        location: Location = None,
     ) -> None:
         package = ID(package)
 
@@ -1067,7 +1074,8 @@ class Refinement(Type):
 
         super().__init__(
             package * "__REFINEMENT__"
-            f"{flat_name(sdu.full_name)}__{flat_name(pdu.full_name)}__{field.name}__"
+            f"{flat_name(sdu.full_name)}__{flat_name(pdu.full_name)}__{field.name}__",
+            location,
         )
 
         self.pdu = pdu
