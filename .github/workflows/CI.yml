@@ -168,7 +168,7 @@ jobs:
         echo "::add-path::$HOME/bin"
     - name: Build runtime
       run: |
-        git clone -b v1.1.0 --depth 1 https://github.com/Componolit/ada-runtime
+        git clone -b v1.3.0 --depth 1 https://github.com/Componolit/ada-runtime
         make -C ada-runtime
     - name: Build
       run: |
