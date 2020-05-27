@@ -445,7 +445,7 @@ def test_invalid_modular_type() -> None:
                type T is mod 2**128;
             end Test;
         """,
-        r"^<stdin>:3:30: model: error: modulus exceeds limit \(2\*\*62\)",
+        r"^<stdin>:3:16: model: error: modulus exceeds limit \(2\*\*62\)",
     )
 
 
@@ -456,7 +456,7 @@ def test_invalid_enumeration_type_size() -> None:
                type T is (Foo, Bar, Baz) with Size => 1;
             end Test;
         """,
-        r"<stdin>:3:55: model: error: size too small",
+        r"<stdin>:3:16: model: error: size too small",
     )
 
 
